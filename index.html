@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MediaPaong by P I New</title>
+    <!-- Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Internal Styles -->
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #111827; }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #1f2937; }
+        ::-webkit-scrollbar-thumb { background: #4f46e5; border-radius: 10px; }
+
+        /* Animasi Loading */
+        #initial-loading-screen.is-leaving { opacity: 0; pointer-events: none; transition: opacity 0.5s ease-out; }
+        #loading-logo { animation: pulse-in 3s ease-in-out forwards; }
+        #loading-text { opacity: 0; animation: fade-in-up 1.5s ease-out 1s forwards; }
+        #logo-p, #logo-i { stroke-dasharray: 500; stroke-dashoffset: 500; animation: draw 2.2s ease-in-out 0.2s forwards; }
+        #logo-i { animation-delay: 0.7s; }
+        #logo-new { opacity: 0; animation: fadeIn 1s ease-in-out 2.5s forwards; }
+        @keyframes draw { to { stroke-dashoffset: 0; } }
+        @keyframes fadeIn { to { opacity: 1; } }
+        @keyframes pulse-in { 0% { transform: scale(0.9); opacity: 0; } 50% { transform: scale(1.05); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
+        @keyframes fade-in-up { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Transisi Halaman */
+        .page-wrapper { position: absolute; inset: 0; transition: opacity 0.3s ease-in-out; }
+        .page-wrapper.is-leaving { opacity: 0; pointer-events: none; }
+        
+        .nav-link.active { background-color: #374151; color: white; }
+        progress[value]::-webkit-progress-bar { background-color: #374151; border-radius: 0.5rem; }
+        progress[value]::-webkit-progress-value { background-color: #4f46e5; border-radius: 0.5rem; transition: width 0.2s; }
+        .btn-spinner { animation: spin 1s linear infinite; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="text-gray-200 antialiased overflow-hidden">
+
+    <!-- Kontainer utama untuk semua konten -->
+    <div id="root-container" class="relative w-full h-full">
+        <!-- Halaman Loading Awal diletakkan langsung di sini -->
+        <div id="initial-loading-screen" class="fixed inset-0 bg-gray-900 flex flex-col justify-center items-center z-[100]">
+            <div id="loading-logo" class="w-32 h-32 mb-4">
+                <svg viewBox="0 0 200 200">
+                    <path id="logo-p" d="M 50 150 L 50 50 L 110 50 C 140 50 140 80 110 80 L 50 80" stroke="#4f46e5" stroke-width="12" fill="none" stroke-linecap="round"/>
+                    <path id="logo-i" d="M 150 150 L 150 110" stroke="#818cf8" stroke-width="12" fill="none" stroke-linecap="round"/>
+                    <circle cx="150" cy="90" r="6" fill="#818cf8" />
+                    <text id="logo-new" x="90" y="145" font-family="Inter,sans-serif" font-size="30" fill="#c7d2fe" font-weight="bold">New</text>
+                </svg>
+            </div>
+            <p id="loading-text" class="text-xl font-semibold text-gray-300">MediaPaong By P I New</p>
+        </div>
+    </div>
+    
+    <!-- Kontainer untuk semua modal/pop-up -->
+    <div id="modal-container" class="fixed inset-0 z-50 pointer-events-none"></div>
+
+    <!-- ===== TEMPLATES (Cetakan Halaman) ===== -->
+
+    <template id="template-auth">
+        <div id="auth-container" class="min-h-screen w-full flex flex-col justify-center items-center p-4" style="background-image: url('https://images.unsplash.com/photo-1501854140801-50d01698950b?q=80&w=2400&auto=format&fit=crop'); background-size: cover; background-position: center;">
+            <div class="absolute inset-0 bg-black bg-opacity-50"></div>
+            <div id="login-view" class="auth-view w-full max-w-md hidden z-10">
+                <form id="login-form" class="bg-gray-800 bg-opacity-80 backdrop-blur-sm p-8 rounded-2xl shadow-2xl space-y-6">
+                    <h2 class="text-3xl font-bold text-center text-white">Selamat Datang</h2>
+                    <p class="text-center text-sm text-gray-400">Masuk atau Daftar untuk melanjutkan.</p>
+                    <div><label for="login-email" class="text-sm font-medium">Email</label><input id="login-email" type="email" required autocomplete="email" class="mt-1 w-full p-3 bg-gray-700 rounded-md border border-gray-600 focus:ring-2 focus:ring-indigo-500"></div>
+                    <div>
+                        <label for="login-password" class="text-sm font-medium">Password</label>
+                        <div class="relative"><input id="login-password" type="password" required autocomplete="current-password" class="mt-1 w-full p-3 bg-gray-700 rounded-md border border-gray-600 focus:ring-2 focus:ring-indigo-500"><button type="button" class="toggle-password absolute inset-y-0 right-0 px-3 text-gray-400"><i data-lucide="eye"></i></button></div>
+                        <a href="#auth=forgot-password" class="auth-link text-sm text-indigo-400 hover:underline mt-2 block text-right">Lupa Password?</a>
+                    </div>
+                    <button type="submit" class="w-full py-3 text-white bg-indigo-600 rounded-md font-semibold hover:bg-indigo-700 flex items-center justify-center disabled:opacity-50 transition-colors">
+                        <span class="btn-text">Masuk</span><i data-lucide="loader-2" class="btn-spinner ml-2 h-5 w-5 hidden"></i>
+                    </button>
+                    <p class="text-sm text-center">Belum punya akun? <a href="#auth=register" class="auth-link font-medium text-indigo-400 hover:underline">Daftar di sini</a>.</p>
+                </form>
+            </div>
+            <div id="register-view" class="auth-view w-full max-w-md hidden z-10">
+                <form id="register-form" class="bg-gray-800 bg-opacity-80 backdrop-blur-sm p-8 rounded-2xl shadow-2xl space-y-4">
+                    <h2 class="text-3xl font-bold text-center text-white">Buat Akun Baru</h2>
+                    <div><label for="register-email">Email</label><input id="register-email" type="email" required class="mt-1 w-full p-3 bg-gray-700 rounded-md border border-gray-600 focus:ring-2 focus:ring-indigo-500"></div>
+                    <div><label for="register-password">Password</label><div class="relative"><input id="register-password" type="password" required class="mt-1 w-full p-3 bg-gray-700 rounded-md border border-gray-600 focus:ring-2 focus:ring-indigo-500"><button type="button" class="toggle-password absolute inset-y-0 right-0 px-3 text-gray-400"><i data-lucide="eye"></i></button></div></div>
+                    <button type="submit" class="w-full py-3 text-white bg-indigo-600 rounded-md font-semibold hover:bg-indigo-700 flex items-center justify-center disabled:opacity-50 transition-colors">
+                        <span class="btn-text">Daftar</span><i data-lucide="loader-2" class="btn-spinner ml-2 h-5 w-5 hidden"></i>
+                    </button>
+                    <p class="text-sm text-center">Sudah punya akun? <a href="#auth=login" class="auth-link font-medium text-indigo-400 hover:underline">Login di sini</a>.</p>
+                </form>
+            </div>
+            <div id="forgot-password-view" class="auth-view w-full max-w-md hidden z-10">
+                 <form id="forgot-password-form" class="bg-gray-800 bg-opacity-80 backdrop-blur-sm p-8 rounded-2xl shadow-2xl space-y-6">
+                    <h2 class="text-3xl font-bold text-center text-white">Reset Password</h2>
+                    <p class="text-center text-sm text-gray-400">Masukkan email Anda untuk menerima link reset password.</p>
+                    <div><label for="forgot-email">Email</label><input id="forgot-email" type="email" required class="mt-1 w-full p-3 bg-gray-700 rounded-md border border-gray-600 focus:ring-2 focus:ring-indigo-500"></div>
+                    <button type="submit" class="w-full py-3 text-white bg-indigo-600 rounded-md font-semibold hover:bg-indigo-700 flex items-center justify-center disabled:opacity-50 transition-colors">
+                        <span class="btn-text">Kirim Link</span><i data-lucide="loader-2" class="btn-spinner ml-2 h-5 w-5 hidden"></i>
+                    </button>
+                    <p class="text-sm text-center"><a href="#auth=login" class="auth-link font-medium text-gray-400 hover:underline">Kembali ke Login</a>.</p>
+                </form>
+            </div>
+             <div id="update-password-view" class="auth-view w-full max-w-md hidden z-10">
+                 <form id="update-password-form" class="bg-gray-800 bg-opacity-80 backdrop-blur-sm p-8 rounded-2xl shadow-2xl space-y-6">
+                    <h2 class="text-3xl font-bold text-center text-white">Buat Password Baru</h2>
+                    <p class="text-center text-sm text-gray-400">Masukkan password baru Anda di bawah ini.</p>
+                    <div><label for="update-password">Password Baru</label><div class="relative"><input id="update-password" type="password" required class="mt-1 w-full p-3 bg-gray-700 rounded-md border border-gray-600 focus:ring-2 focus:ring-indigo-500"><button type="button" class="toggle-password absolute inset-y-0 right-0 px-3 text-gray-400"><i data-lucide="eye"></i></button></div></div>
+                    <button type="submit" class="w-full py-3 text-white bg-indigo-600 rounded-md font-semibold hover:bg-indigo-700 flex items-center justify-center disabled:opacity-50 transition-colors">
+                        <span class="btn-text">Perbarui Password</span><i data-lucide="loader-2" class="btn-spinner ml-2 h-5 w-5 hidden"></i>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </template>
+    
+    <template id="template-app">
+        <div class="h-screen w-screen flex flex-col md:flex-row bg-gray-900">
+            <nav class="bg-gray-800 order-last md:order-first md:w-64 p-2 md:p-4 flex md:flex-col justify-around md:justify-start md:space-y-2">
+                <a href="#dashboard" class="nav-link flex flex-col md:flex-row items-center text-center md:text-left gap-3 p-3 rounded-lg text-gray-400 hover:bg-gray-700 hover:text-white transition-colors" data-page="dashboard"><i data-lucide="upload-cloud"></i><span class="text-xs md:text-sm font-medium">Upload File</span></a>
+                <a href="#ai-agent" class="nav-link flex flex-col md:flex-row items-center text-center md:text-left gap-3 p-3 rounded-lg text-gray-400 hover:bg-gray-700 hover:text-white transition-colors" data-page="ai-agent"><i data-lucide="bot"></i><span class="text-xs md:text-sm font-medium">AI Agent</span></a>
+                <a href="#report" class="nav-link flex flex-col md:flex-row items-center text-center md:text-left gap-3 p-3 rounded-lg text-gray-400 hover:bg-gray-700 hover:text-white transition-colors" data-page="report"><i data-lucide="mail-warning"></i><span class="text-xs md:text-sm font-medium">Lapor/Bantuan</span></a>
+                <a href="#profile" class="nav-link flex flex-col md:flex-row items-center text-center md:text-left gap-3 p-3 rounded-lg text-gray-400 hover:bg-gray-700 hover:text-white transition-colors" data-page="profile"><i data-lucide="user-circle-2"></i><span class="text-xs md:text-sm font-medium">Profil Akun</span></a>
+                <div class="flex-grow"></div>
+                <button id="logout-button" class="w-full flex-col md:flex-row items-center text-center md:text-left gap-3 p-3 rounded-lg text-red-400 hover:bg-red-500 hover:text-white transition-colors flex"><i data-lucide="log-out"></i><span class="text-xs md:text-sm font-medium">Keluar</span></button>
+            </nav>
+            <main id="main-content" class="flex-1 overflow-y-auto p-4 md:p-8 relative"></main>
+        </div>
+    </template>
+    
+    <template id="template-page-dashboard">
+        <div class="page" id="dashboard-page">
+            <h1 class="text-3xl font-bold mb-6">Upload File/APK Anda</h1>
+            <p class="text-gray-400 mb-8 max-w-2xl">Bagikan karya Anda ke seluruh dunia. Cukup pilih file Anda di bawah ini, dan proses upload akan berjalan otomatis. Link publik akan dibuatkan setelah selesai.</p>
+            <div id="upload-area" class="border-2 border-dashed border-gray-600 rounded-2xl p-8 text-center cursor-pointer hover:border-indigo-500 hover:bg-gray-800 transition-all">
+                <input type="file" id="file-input" class="hidden">
+                <i data-lucide="upload" class="mx-auto h-16 w-16 text-gray-500 mb-4"></i>
+                <h2 class="text-xl font-semibold">Pilih atau Tarik File ke Sini</h2>
+                <p class="text-gray-500">File APK, ZIP, gambar, atau lainnya</p>
+            </div>
+            <div id="upload-progress-container" class="mt-8 hidden">
+                <div class="flex justify-between mb-1">
+                    <span id="progress-filename" class="text-base font-medium text-gray-300"></span>
+                    <span id="progress-percentage" class="text-sm font-medium text-gray-300">0%</span>
+                </div>
+                <progress id="upload-progress-bar" value="0" max="100" class="w-full h-2.5 rounded-full"></progress>
+            </div>
+        </div>
+    </template>
+    <template id="template-page-ai-agent">
+        <div class="page h-full flex flex-col" id="ai-agent-page">
+            <div class="p-4 border-b border-gray-700">
+                <h1 class="text-xl font-bold">Asisten AI P I New</h1>
+                <p class="text-sm text-gray-400">Saya siap membantu. Tanya apa saja tentang P I New atau topik lainnya.</p>
+            </div>
+            <div id="chat-history" class="flex-1 p-4 overflow-y-auto space-y-4"></div>
+            <div class="p-4 border-t border-gray-700">
+                <form id="ai-form" class="flex gap-4">
+                    <input id="ai-prompt" type="text" placeholder="Ketik pesan Anda di sini..." class="flex-1 p-3 bg-gray-700 rounded-md border border-gray-600 focus:ring-2 focus:ring-indigo-500">
+                    <button type="submit" class="p-3 bg-indigo-600 rounded-md text-white hover:bg-indigo-700 disabled:opacity-50 flex items-center">
+                        <span class="btn-text"><i data-lucide="send"></i></span>
+                        <i data-lucide="loader-2" class="btn-spinner h-5 w-5 hidden"></i>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </template>
+    <template id="template-page-report">
+        <div class="page max-w-2xl mx-auto" id="report-page">
+            <h1 class="text-3xl font-bold mb-4">Hubungi Tim Dukungan</h1>
+            <p class="text-gray-400 mb-8">Laporan Anda akan dikirim langsung sebagai email ke tim kami. Kami akan membalasnya ke alamat email Anda.</p>
+            <form id="report-form" class="space-y-6">
+                 <div><label for="report-subject" class="text-sm font-medium">Subjek</label><input id="report-subject" type="text" required class="mt-1 w-full p-3 bg-gray-700 rounded-md border border-gray-600 focus:ring-2 focus:ring-indigo-500"></div>
+                 <div><label for="report-message" class="text-sm font-medium">Pesan Anda</label><textarea id="report-message" rows="5" required class="mt-1 w-full p-3 bg-gray-700 rounded-md border border-gray-600 focus:ring-2 focus:ring-indigo-500"></textarea></div>
+                 <button type="submit" class="w-full py-3 text-white bg-indigo-600 rounded-md font-semibold hover:bg-indigo-700 flex items-center justify-center disabled:opacity-50 transition-colors">
+                    <span class="btn-text">Kirim Laporan</span><i data-lucide="loader-2" class="btn-spinner ml-2 h-5 w-5 hidden"></i>
+                 </button>
+            </form>
+        </div>
+    </template>
+    <template id="template-page-profile">
+        <div class="page max-w-2xl mx-auto" id="profile-page">
+            <h1 class="text-3xl font-bold mb-8">Profil Akun</h1>
+            <div id="profile-content" class="space-y-6">
+                <div class="flex items-center gap-6">
+                    <img id="profile-avatar-img" src="https://placehold.co/96x96/374151/c7d2fe?text=P" alt="Avatar" class="h-24 w-24 rounded-full object-cover bg-gray-700">
+                    <div>
+                        <button id="change-avatar-btn" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-md text-sm font-medium">Ganti Foto</button>
+                        <input type="file" id="avatar-input" accept="image/*" class="hidden">
+                        <p class="text-xs text-gray-500 mt-2">JPG, PNG, atau GIF. Maks 2MB.</p>
+                    </div>
+                </div>
+                <div><label class="text-sm font-medium">Email</label><p id="profile-email-text" class="mt-1 p-3 bg-gray-800 rounded-md"></p></div>
+                 <div><label class="text-sm font-medium">Akun Dibuat</label><p id="profile-joined-text" class="mt-1 p-3 bg-gray-800 rounded-md"></p></div>
+            </div>
+        </div>
+    </template>
+    <template id="template-modal-link-publish">
+         <div class="modal-content fixed inset-0 m-auto w-11/12 max-w-lg h-fit bg-gray-800 rounded-2xl shadow-2xl p-8 space-y-6">
+            <div class="text-center">
+                <i data-lucide="party-popper" class="mx-auto h-16 w-16 text-green-400 mb-4"></i>
+                <h2 class="text-2xl font-bold">Upload Berhasil!</h2>
+                <p class="text-gray-400 mt-2">Bagikan link di bawah ini agar orang lain dapat mengunduh file Anda.</p>
+            </div>
+            <div class="relative">
+                <input id="publish-link-input" type="text" readonly class="w-full p-3 pr-12 bg-gray-700 rounded-md border border-gray-600">
+                <button id="copy-link-btn" class="absolute inset-y-0 right-0 px-3 text-gray-400 hover:text-white"><i data-lucide="copy"></i></button>
+            </div>
+            <button class="close-modal-btn w-full py-3 bg-indigo-600 rounded-md font-semibold hover:bg-indigo-700">Selesai</button>
+        </div>
+    </template>
+    <template id="template-download">
+        <div id="download-container" class="min-h-screen w-full flex flex-col justify-center items-center p-4 bg-gray-900">
+            <div id="download-box" class="w-full max-w-lg bg-gray-800 p-8 rounded-2xl shadow-2xl text-center space-y-6"></div>
+        </div>
+    </template>
+
+
+    <!-- ===== JAVASCRIPT UTAMA (MESIN BARU & STABIL) ===== -->
+    <script type="module">
+        // --- KONFIGURASI APLIKASI ---
+        const SUPABASE_URL = 'https://ldlauwjioniiucmeqneg.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxkbGF1d2ppb25paXVjbWVxbmVnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM3MTEyMzcsImV4cCI6MjA2OTI4NzIzN30.l1iMpIDzmxqLn2lj4a9KR6lCohmsrXHKwMdlnbhTs-A';
+        const GEMINI_API_KEY = ""; 
+
+        // --- INISIALISASI ---
+        const { createClient } = supabase;
+        const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        const root = document.getElementById('root-container');
+        const modals = document.getElementById('modal-container');
+        const state = { user: null };
+        
+        // --- FUNGSI UTAMA (ENTRY POINT) ---
+        async function main() {
+            const minimumLoadingPromise = new Promise(resolve => setTimeout(resolve, 3000));
+            
+            try {
+                db.auth.onAuthStateChange((_event, session) => {
+                    const userHasChanged = state.user?.id !== session?.user?.id;
+                    state.user = session?.user || null;
+                    if (userHasChanged) handleRouteChange();
+                });
+
+                const { data: { session } } = await db.auth.getSession();
+                state.user = session?.user || null;
+                
+                window.addEventListener('hashchange', handleRouteChange);
+                await handleRouteChange();
+
+            } catch (error) {
+                console.error("Initialization Error:", error);
+                showFatalError(error);
+            } finally {
+                await minimumLoadingPromise;
+                const loadingScreen = document.getElementById('initial-loading-screen');
+                if (loadingScreen) {
+                    loadingScreen.classList.add('is-leaving');
+                    loadingScreen.addEventListener('transitionend', () => loadingScreen.remove(), { once: true });
+                }
+            }
+        }
+
+        // --- ROUTER (Pengatur Halaman) ---
+        function handleRouteChange() {
+            try {
+                const hash = window.location.hash.slice(1);
+                if (hash.startsWith('download=')) {
+                    return renderPage('download', { fileId: hash.split('=')[1] });
+                }
+                if (hash.startsWith('access_token=')) {
+                    setTimeout(() => {
+                        if(state.user && window.location.hash.startsWith('#access_token')) {
+                           window.location.hash = '#dashboard';
+                        }
+                    }, 500);
+                    return;
+                }
+
+                if (state.user) {
+                    const page = hash.split('=')[0] || 'dashboard';
+                    if (page.startsWith('auth')) {
+                        window.location.hash = '#dashboard'; 
+                    } else {
+                        renderPage('app', { pageId: page });
+                    }
+                } else {
+                    const view = hash.split('=')[1] || 'login';
+                    renderPage('auth', { viewId: `${view}-view` });
+                }
+            } catch (error) {
+                console.error("Routing Error:", error);
+                showFatalError(error);
+            }
+        }
+
+        // --- RENDERER (PEMBANGUN TAMPILAN) ---
+        function renderPage(type, options = {}) {
+            let currentView = root.querySelector('.page-wrapper');
+            if (currentView) {
+                currentView.classList.add('is-leaving');
+                currentView.addEventListener('transitionend', () => currentView.remove(), { once: true });
+            }
+
+            const template = document.getElementById(`template-${type}`);
+            if (!template) return showFatalError({ message: `Template not found: template-${type}` });
+
+            const wrapper = document.createElement('div');
+            wrapper.className = 'page-wrapper';
+            wrapper.appendChild(template.content.cloneNode(true));
+            root.appendChild(wrapper);
+
+            requestAnimationFrame(() => {
+                try {
+                    lucide.createIcons();
+                    const setupFunctions = {
+                        'auth': () => { showAuthView(options.viewId); addAuthListeners(); },
+                        'app': () => renderAppPage(options.pageId),
+                        'download': () => setupDownloadPage(options.fileId)
+                    };
+                    setupFunctions[type]?.();
+                } catch(error) {
+                    console.error("Render/Setup Error:", error);
+                    showFatalError(error);
+                }
+            });
+        }
+        
+        function showAuthView(viewId) {
+            document.querySelectorAll('.auth-view').forEach(v => v.classList.add('hidden'));
+            const targetView = document.getElementById(viewId);
+            if(targetView) targetView.classList.remove('hidden');
+        }
+
+        function renderAppPage(pageId) {
+            const mainContent = document.getElementById('main-content');
+            if (!mainContent) return;
+            document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+            document.querySelector(`.nav-link[data-page="${pageId}"]`)?.classList.add('active');
+            
+            const template = document.getElementById(`template-page-${pageId}`);
+            if (template) {
+                mainContent.innerHTML = '';
+                mainContent.appendChild(template.content.cloneNode(true));
+                lucide.createIcons();
+                const setupFunctions = {
+                    'dashboard': setupDashboardPage, 'ai-agent': setupAiAgentPage,
+                    'report': setupReportPage, 'profile': setupProfilePage
+                };
+                setupFunctions[pageId]?.();
+            } else {
+                mainContent.innerHTML = `<h1>Halaman ${pageId} tidak ditemukan.</h1>`;
+            }
+            addAppListeners();
+        }
+        
+        // --- LOGIKA HALAMAN & FITUR ---
+        async function setupDownloadPage(fileId) {
+             const downloadBox = document.querySelector('#download-box');
+             if(!downloadBox) return;
+             downloadBox.innerHTML = `<i data-lucide="loader-2" class="mx-auto h-12 w-12 text-gray-500 mb-4 btn-spinner"></i><h2 class="text-xl font-semibold">Mencari file...</h2>`;
+             lucide.createIcons();
+             
+             const { data, error } = await db.from('files').select('*').eq('id', fileId).single();
+
+            if (error || !data) {
+                downloadBox.innerHTML = `<i data-lucide="file-x-2" class="mx-auto h-12 w-12 text-red-400 mb-4"></i><h2 class="text-xl font-semibold text-white">File Tidak Ditemukan</h2><p class="text-gray-400 mt-2">Link ini mungkin sudah kadaluwarsa atau salah.</p>`;
+            } else {
+                 downloadBox.innerHTML = `<i data-lucide="file-check-2" class="mx-auto h-12 w-12 text-green-400 mb-4"></i><h2 class="text-2xl font-semibold text-white truncate">${data.file_name}</h2><p class="text-gray-400">Ukuran: ${(data.file_size / (1024 * 1024)).toFixed(2)} MB</p><a href="${data.public_url}" download="${data.file_name}" id="download-button" class="mt-6 inline-block w-full py-4 text-white bg-indigo-600 rounded-md font-semibold hover:bg-indigo-700 transition-colors">Download Sekarang</a>`;
+            }
+            lucide.createIcons();
+        }
+        
+        function addAuthListeners() {
+            document.querySelectorAll('.toggle-password').forEach(btn => btn.onclick = e => {
+                const input = e.currentTarget.previousElementSibling; const icon = e.currentTarget.querySelector('i');
+                input.type = (input.type === 'password') ? 'text' : 'password';
+                icon.setAttribute('data-lucide', input.type === 'password' ? 'eye' : 'eye-off');
+                lucide.createIcons();
+            });
+            document.querySelectorAll('a.auth-link').forEach(link => link.onclick = e => { e.preventDefault(); window.location.hash = link.getAttribute('href'); });
+            document.getElementById('login-form')?.addEventListener('submit', handleLogin);
+            document.getElementById('register-form')?.addEventListener('submit', handleRegister);
+            document.getElementById('forgot-password-form')?.addEventListener('submit', handleForgotPassword);
+            document.getElementById('update-password-form')?.addEventListener('submit', handleUpdatePassword);
+        }
+
+        function addAppListeners() {
+            const logoutBtn = document.getElementById('logout-button');
+            if (logoutBtn) {
+                logoutBtn.style.display = state.user ? 'flex' : 'none';
+                logoutBtn.onclick = handleLogout;
+            }
+            document.querySelectorAll('a.nav-link').forEach(link => link.onclick = e => { e.preventDefault(); window.location.hash = link.getAttribute('href'); });
+        }
+
+        async function handleLogin(e) { e.preventDefault(); const btn = e.target.querySelector('button'); toggleButtonLoading(btn, true); const { error } = await db.auth.signInWithPassword({ email: e.target.elements['login-email'].value, password: e.target.elements['login-password'].value }); if (error) showAlert(error.message, true); toggleButtonLoading(btn, false); }
+        async function handleRegister(e) { e.preventDefault(); const btn = e.target.querySelector('button'); toggleButtonLoading(btn, true); const { error } = await db.auth.signUp({ email: e.target.elements['register-email'].value, password: e.target.elements['register-password'].value, options: { emailRedirectTo: `${window.location.origin}${window.location.pathname}` } }); if(error) showAlert(error.message, true); else showAlert('Pendaftaran berhasil! Periksa email untuk verifikasi.'); toggleButtonLoading(btn, false); }
+        async function handleForgotPassword(e) { e.preventDefault(); const btn = e.target.querySelector('button'); toggleButtonLoading(btn, true); const { error } = await db.auth.resetPasswordForEmail(e.target.elements['forgot-email'].value, { redirectTo: `${window.location.origin}${window.location.pathname}#auth=update-password` }); if (error) showAlert(error.message, true); else showAlert('Link reset password telah dikirim.'); toggleButtonLoading(btn, false); }
+        async function handleUpdatePassword(e) { e.preventDefault(); const btn = e.target.querySelector('button'); toggleButtonLoading(btn, true); const { error } = await db.auth.updateUser({ password: e.target.elements['update-password'].value }); if (error) showAlert(`Gagal: ${error.message}`, true); else { showAlert('Password berhasil diperbarui!'); window.location.hash = '#dashboard'; } toggleButtonLoading(btn, false); }
+        async function handleLogout() { await db.auth.signOut(); }
+
+        function setupDashboardPage() {
+            const uploadArea = document.getElementById('upload-area');
+            const fileInput = document.getElementById('file-input');
+            uploadArea.onclick = () => fileInput.click();
+            fileInput.onchange = (e) => handleFileUpload(e.target.files[0]);
+            ['dragover', 'dragleave', 'drop'].forEach(eventName => {
+                uploadArea.addEventListener(eventName, e => {
+                    e.preventDefault(); e.stopPropagation();
+                    if(eventName === 'dragover') uploadArea.classList.add('border-indigo-500', 'bg-gray-800');
+                    else uploadArea.classList.remove('border-indigo-500', 'bg-gray-800');
+                    if(eventName === 'drop') handleFileUpload(e.dataTransfer.files[0]);
+                });
+            });
+        }
+        async function handleFileUpload(file) {
+            if (!file) return;
+            if (!state.user) return showAlert('Anda harus login untuk meng-upload file.', true);
+
+            const progressContainer = document.getElementById('upload-progress-container');
+            const progressBar = document.getElementById('upload-progress-bar');
+            const progressFilename = document.getElementById('progress-filename');
+            const progressPercentage = document.getElementById('progress-percentage');
+            progressFilename.textContent = file.name;
+            progressContainer.classList.remove('hidden');
+
+            const filePath = `${state.user.id}/${Date.now()}-${file.name.replace(/\s/g, '_')}`;
+            const { error } = await db.storage.from('mediapaong').upload(filePath, file, { cacheControl: '3600', upsert: false,
+                onUploadProgress: ({ loaded, total }) => {
+                    const percent = Math.floor((loaded / total) * 100);
+                    progressBar.value = percent;
+                    progressPercentage.textContent = `${percent}%`;
+                }
+            });
+            if (error) { showAlert(`Upload gagal: ${error.message}`, true); return progressContainer.classList.add('hidden'); }
+            
+            const { data: { publicUrl } } = db.storage.from('mediapaong').getPublicUrl(filePath);
+            const { data: fileMeta, error: dbError } = await db.from('files').insert({ user_id: state.user.id, file_name: file.name, file_path: filePath, public_url: publicUrl, file_size: file.size }).select('id').single();
+            if (dbError) { showAlert(`Gagal menyimpan info file: ${dbError.message}`, true); return progressContainer.classList.add('hidden'); }
+            
+            showAlert('Upload berhasil!');
+            progressContainer.classList.add('hidden');
+            const publishLink = `${window.location.origin}${window.location.pathname}#download=${fileMeta.id}`;
+            showModal('template-modal-link-publish', { url: publishLink });
+        }
+        function setupReportPage() {
+             const reportForm = document.getElementById('report-form');
+             reportForm.onsubmit = async (e) => {
+                e.preventDefault();
+                if (!state.user) return showAlert('Anda harus login untuk mengirim laporan.', true);
+
+                const btn = e.target.querySelector('button');
+                toggleButtonLoading(btn, true);
+                const body = { userEmail: state.user.email, subject: e.target.elements['report-subject'].value, message: e.target.elements['report-message'].value };
+                
+                try {
+                    const { error: funcError } = await db.functions.invoke('send-report', { body });
+                    if (funcError) throw funcError;
+                    
+                    await db.from('reports').insert({ user_id: state.user.id, user_email: state.user.email, subject: body.subject, message: body.message });
+                    
+                    showAlert('Laporan berhasil dikirim!');
+                    reportForm.reset();
+                } catch (error) {
+                    showAlert(`Gagal mengirim laporan: ${error.message}`, true);
+                } finally {
+                    toggleButtonLoading(btn, false);
+                }
+             };
+        }
+        async function setupProfilePage() {
+            if (!state.user) return;
+            
+            document.getElementById('profile-email-text').textContent = state.user.email;
+            document.getElementById('profile-joined-text').textContent = new Date(state.user.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+            
+            const avatarImg = document.getElementById('profile-avatar-img');
+            const avatarInput = document.getElementById('avatar-input');
+            const { data: { publicUrl } } = db.storage.from('firebase').getPublicUrl(`${state.user.id}/avatar.png`);
+            avatarImg.src = `${publicUrl}?t=${Date.now()}`;
+            avatarImg.onerror = () => { avatarImg.src = `https://placehold.co/96x96/374151/c7d2fe?text=${state.user.email[0].toUpperCase()}`; };
+            
+            document.getElementById('change-avatar-btn').onclick = () => avatarInput.click();
+            avatarInput.onchange = async (e) => {
+                const file = e.target.files[0]; if (!file) return;
+                const { error } = await db.storage.from('firebase').upload(`${state.user.id}/avatar.png`, file, { upsert: true });
+                if(error) showAlert(`Gagal upload avatar: ${error.message}`, true);
+                else { showAlert('Avatar berhasil diperbarui!'); avatarImg.src = `${publicUrl}?t=${Date.now()}`; }
+            };
+        }
+        function setupAiAgentPage() {
+             const aiForm = document.getElementById('ai-form');
+             const aiPrompt = document.getElementById('ai-prompt');
+             const chatHistoryEl = document.getElementById('chat-history');
+             const systemPrompt = `Anda adalah Asisten AI dari MediaPaong, sebuah platform file-sharing yang dibuat oleh P I New. Pemilik dan pendiri utama P I New adalah Paong. Misi Anda adalah membantu pengguna dengan gaya bahasa manusia yang profesional, jelas, dan bersahabat. Berikut adalah pengetahuan inti Anda:
+            1.  **Tentang MediaPaong & P I New:** MediaPaong adalah layanan untuk meng-upload dan berbagi file/APK dengan mudah. Ini adalah proyek dari P I New, sebuah entitas yang berfokus pada demokratisasi teknologi dan menyediakan alat yang berguna untuk semua orang, terutama developer game independen.
+            2.  **Tentang Pemilik:** Pemiliknya adalah Paong. Jika ditanya, jawab dengan hormat bahwa "Paong adalah pendiri di balik P I New yang memiliki visi untuk menciptakan platform yang mudah diakses."
+            3.  **Cara Kerja:** Jelaskan bahwa pengguna bisa meng-upload file, mendapatkan link, dan membagikannya. Data disimpan dengan aman di server cloud (Supabase) dengan enkripsi saat transit dan saat disimpan.
+            4.  **Menjawab Pertanyaan Tak Terduga:** Jika Anda tidak tahu jawabannya, katakan dengan jujur, "Maaf, saya belum memiliki informasi mengenai hal tersebut, tetapi saya akan meneruskan pertanyaan Anda ke tim." Jangan mengarang jawaban.
+            5.  **Tutorial:** Jelaskan cara upload: "Cukup pergi ke halaman Upload File, klik area yang tersedia, pilih file Anda, dan proses upload akan berjalan otomatis. Setelah selesai, link akan muncul." Jelaskan cara lapor: "Pergi ke halaman Lapor/Bantuan, isi form yang tersedia, dan tim kami akan menerima laporan Anda melalui email."
+            Anda harus selalu menjaga konteks dari 5 percakapan terakhir.`;
+             let chatHistory = [{ role: 'user', parts: [{ text: systemPrompt }] },{ role: 'model', parts: [{ text: "Halo! Saya adalah asisten AI dari MediaPaong. Ada yang bisa saya bantu?" }] }];
+             function renderChat() { if(!chatHistoryEl) return; chatHistoryEl.innerHTML = ''; chatHistory.slice(1).forEach(msg => { const d = document.createElement('div'); const b = document.createElement('div'); b.textContent = msg.parts[0].text; if(msg.role === 'user'){d.className='flex justify-end';b.className='bg-indigo-600 p-3 rounded-lg max-w-lg';} else {d.className='flex justify-start';b.className='bg-gray-700 p-3 rounded-lg max-w-lg';} d.appendChild(b); chatHistoryEl.appendChild(d); }); chatHistoryEl.scrollTop = chatHistoryEl.scrollHeight; }
+             renderChat();
+             aiForm.onsubmit = async (e) => { e.preventDefault(); const prompt = aiPrompt.value.trim(); if (!prompt) return; if (!GEMINI_API_KEY) return showAlert('Fitur AI saat ini tidak tersedia.', true); const btn = e.target.querySelector('button'); toggleButtonLoading(btn, true); chatHistory.push({ role: 'user', parts: [{ text: prompt }] }); renderChat(); aiPrompt.value = '';
+                const payload = { contents: chatHistory.slice(-11) }; 
+                try {
+                    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                    if(!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                    const result = await response.json();
+                    chatHistory.push({ role: 'model', parts: [{ text: result.candidates[0].content.parts[0].text }] });
+                } catch(error) { chatHistory.push({ role: 'model', parts: [{ text: `Maaf, terjadi kesalahan: ${error.message}` }] }); }
+                finally { renderChat(); toggleButtonLoading(btn, false); }
+            };
+        }
+        function showModal(templateId, data = {}) {
+            const template = document.getElementById(templateId); if(!template) return;
+            const clone = template.content.cloneNode(true);
+            const modalContent = clone.querySelector('.modal-content');
+            if (templateId === 'template-modal-link-publish') {
+                clone.querySelector('#publish-link-input').value = data.url;
+                clone.querySelector('#copy-link-btn').onclick = () => { navigator.clipboard.writeText(data.url); showAlert('Link disalin!'); };
+                clone.querySelector('.close-modal-btn').onclick = () => hideModal();
+            }
+            modals.innerHTML = ''; modals.appendChild(clone);
+            modals.classList.remove('pointer-events-none');
+            setTimeout(() => modalContent?.classList.add('enter-active'), 10);
+        }
+        function hideModal() { const modalContent = modals.querySelector('.modal-content'); if(!modalContent) return; modalContent.classList.add('is-leaving'); modalContent.addEventListener('transitionend', () => { modals.innerHTML = ''; modals.classList.add('pointer-events-none'); }, { once: true }); }
+        function showAlert(message, isError = false) { const el = document.createElement('div'); el.className = `fixed top-5 right-5 p-4 rounded-lg shadow-lg text-white ${isError ? 'bg-red-500' : 'bg-green-500'} transition-transform duration-300 translate-x-full z-[200]`; document.body.appendChild(el); el.textContent = message; setTimeout(() => el.classList.remove('translate-x-full'), 10); setTimeout(() => { el.classList.add('translate-x-full'); el.addEventListener('transitionend', () => el.remove(), {once: true}); }, 3000); }
+        function toggleButtonLoading(button, isLoading) { if(!button) return; const text = button.querySelector('.btn-text'); const spinner = button.querySelector('.btn-spinner'); if(isLoading){ button.disabled = true; text?.classList.add('hidden'); spinner?.classList.remove('hidden'); } else { button.disabled = false; text?.classList.remove('hidden'); spinner?.classList.add('hidden'); } }
+        function showFatalError(error) { root.innerHTML = `<div class="w-screen h-screen flex justify-center items-center text-center p-4 bg-red-900 text-red-100"><div class="max-w-md"> <i data-lucide="alert-triangle" class="mx-auto h-12 w-12 text-red-300 mb-4"></i><h1 class="text-2xl font-bold">Terjadi Kesalahan Fatal</h1><p class="mt-2">Aplikasi tidak dapat dimuat. Silakan coba muat ulang halaman.</p><pre class="mt-4 text-left bg-red-800 p-2 rounded text-xs text-red-200 overflow-auto">${error.message}\n${error.stack}</pre></div></div>`; lucide.createIcons(); }
+
+        // --- Jalankan Aplikasi Saat DOM Siap ---
+        document.addEventListener('DOMContentLoaded', main);
+
+    </script>
+</body>
+</html>
